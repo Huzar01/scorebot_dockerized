@@ -1,0 +1,41 @@
+# Use the official Arch Linux image as the base
+FROM archlinux:latest
+
+# Update the system and install necessary packages
+RUN pacman -Syu --noconfirm && \
+    pacman -S --noconfirm openssh sudo git which gcc
+
+# Configure SSH
+RUN mkdir /var/run/sshd && \
+    echo 'PermitRootLogin no' >> /etc/ssh/sshd_config && \
+    echo 'PasswordAuthentication yes' >> /etc/ssh/sshd_config && \
+    echo 'AllowUsers sbadmin' >> /etc/ssh/sshd_config \
+    ssh-keygen -A
+
+# Create the sbadmin user with sudo permissions
+RUN useradd -m sbadmin && \
+    echo "sbadmin ALL=(ALL) NOPASSWD: ALL" > /etc/sudoers.d/sbadmin
+
+# Switch to the sbadmin user
+USER sbadmin
+
+# Set the working directory for sbadmin
+WORKDIR /home/sbadmin
+
+# Install Go and set the GOPATH
+RUN sudo pacman -S --noconfirm go && \
+    echo 'export GOPATH="$HOME/go"' >> ~/.bashrc && \
+    echo 'export PATH="$PATH:$GOPATH/bin"' >> ~/.bashrc && \
+    source ~/.bashrc
+
+# Clone the Scorebot-Scoreboard repository and build the project
+RUN git clone https://github.com/iDigitalFlame/Scorebot-Scoreboard.git && \
+    cd Scorebot-Scoreboard && \
+    bash build.sh
+
+# Expose the SSH port
+EXPOSE 22
+
+# Start the SSH server
+CMD ["/usr/sbin/sshd", "-D"]
+

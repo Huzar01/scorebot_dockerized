@@ -1,0 +1,38 @@
+# Use the official Arch Linux image as the base
+FROM archlinux:latest
+
+# Update the system and install necessary packages
+RUN pacman -Syu --noconfirm && \
+    pacman -S --noconfirm sudo openssh git screen mariadb supervisor
+
+# Set up MariaDB data directory
+RUN mkdir -p /var/lib/mysql && \
+    chown -R mysql:mysql /var/lib/mysql && \
+    chmod 750 /var/lib/mysql
+
+# Configure SSH
+RUN mkdir /var/run/sshd && \
+    echo 'PermitRootLogin no' >> /etc/ssh/sshd_config && \
+    echo 'PasswordAuthentication yes' >> /etc/ssh/sshd_config && \
+    echo 'AllowUsers sbadmin' >> /etc/ssh/sshd_config
+
+# Create the sbadmin user with the specified password and sudo permissions
+RUN useradd -m sbadmin && \
+    echo "sbadmin:test123" | chpasswd && \
+    echo "sbadmin ALL=(ALL) NOPASSWD: ALL" > /etc/sudoers.d/sbadmin
+
+# Create supervisord configuration file
+RUN echo "[supervisord]" > /etc/supervisord.conf && \
+    echo "nodaemon=true" >> /etc/supervisord.conf && \
+    echo "" >> /etc/supervisord.conf && \
+    echo "[program:sshd]" >> /etc/supervisord.conf && \
+    echo "command=/usr/sbin/sshd -D" >> /etc/supervisord.conf && \
+    echo "" >> /etc/supervisord.conf && \
+    echo "[program:mysqld_safe]" >> /etc/supervisord.conf && \
+    echo "command=/usr/bin/mysqld_safe" >> /etc/supervisord.conf
+
+# Expose the MariaDB and SSH ports
+EXPOSE 3306 22
+
+# Start supervisord to manage both MariaDB and SSH services
+CMD ["/usr/bin/supervisord", "-c", "/etc/supervisord.conf"]
